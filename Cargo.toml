@@ -1,0 +1,11 @@
+[package]
+name = "scop"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+glfw = { version = "0.58.0", features = ["vulkan"] }
+ash = { version =  "0.38.0", features = ["loaded"] }
+image = "0.25.2"
+tobj = "4.0.2"
+
