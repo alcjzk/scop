@@ -104,8 +104,7 @@ impl Renderer {
             let queue_families =
                 QueueFamilyIndices::from_device_surface(&instance, physical_device, surface)?;
 
-            let command_pool =
-                create_command_pool(&device, queue_families.graphics_family.unwrap())?;
+            let command_pool = create_command_pool(&device, queue_families.graphics_family)?;
             let command_buffers =
                 create_command_buffers(&device, command_pool, Self::MAX_FRAMES_IN_FLIGHT)?;
 
@@ -542,8 +541,7 @@ unsafe fn is_device_suitable(
     required_extensions: &[&CStr],
 ) -> Result<bool> {
     let features = instance.get_physical_device_features(physical_device);
-    let queue_family_indices =
-        QueueFamilyIndices::from_device_surface(instance, physical_device, surface)?;
+    let queue_family_indices = QueueFamilyIndices::builder(instance, physical_device, surface)?;
 
     if !queue_family_indices.is_complete() {
         return Ok(false);
@@ -578,8 +576,8 @@ unsafe fn create_logical_device(
     let queue_family_indices =
         QueueFamilyIndices::from_device_surface(instance, physical_device, surface)?;
 
-    let graphics_family = queue_family_indices.graphics_family.unwrap();
-    let present_family = queue_family_indices.present_family.unwrap();
+    let graphics_family = queue_family_indices.graphics_family;
+    let present_family = queue_family_indices.present_family;
     let unique_queue_families = [graphics_family, present_family].into_iter().collect_set();
 
     let queue_priorities = &[1.0];

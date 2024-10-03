@@ -595,10 +595,7 @@ unsafe fn create_swap_chain(
     }
 
     let indices = QueueFamilyIndices::from_device_surface(instance, physical_device, surface)?;
-    let queue_family_indices = vec![
-        indices.graphics_family.unwrap(), // TODO: Cleanup unwraps
-        indices.present_family.unwrap(),
-    ];
+    let queue_family_indices = vec![indices.graphics_family, indices.present_family];
 
     let mut create_info = vk::SwapchainCreateInfoKHR::default()
         .surface(surface)
