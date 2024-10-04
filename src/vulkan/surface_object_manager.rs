@@ -1,6 +1,7 @@
 use crate::util::IteratorExt;
 use crate::vertex::Vertex;
 use crate::vulkan;
+use crate::Device;
 use crate::QueueFamilyIndices;
 use crate::{Error, Instance, Result};
 
@@ -60,7 +61,7 @@ impl SizedObjects {
     unsafe fn new(
         instance: &Instance,
         physical_device: vk::PhysicalDevice,
-        device: &ash::Device,
+        device: &Device,
         surface: vk::SurfaceKHR,
         surface_capabilities: &vk::SurfaceCapabilitiesKHR,
         surface_format: vk::SurfaceFormatKHR,
@@ -100,7 +101,7 @@ impl SizedObjects {
         })
     }
 
-    unsafe fn destroy(&mut self, instance: &Instance, device: &ash::Device) {
+    unsafe fn destroy(&mut self, device: &Device) {
         device.device_wait_idle().unwrap();
         self.framebuffers
             .iter()
@@ -112,9 +113,9 @@ impl SizedObjects {
             .copied()
             .for_each(|v| device.destroy_image_view(v, None));
 
-        // TODO: Replace with wrapped device
-        let swapchain_ext = ash::khr::swapchain::Device::new(instance, device);
-        swapchain_ext.destroy_swapchain(self.swapchain, None);
+        device
+            .swapchain_khr()
+            .destroy_swapchain(self.swapchain, None);
 
         device.destroy_image_view(self.depth_buffer_view, None);
         device.destroy_image(self.depth_buffer_image, None);
@@ -149,7 +150,7 @@ impl SurfaceObjectManager {
     pub unsafe fn new(
         instance: &Instance,
         physical_device: vk::PhysicalDevice,
-        device: &ash::Device,
+        device: &Device,
         surface: vk::SurfaceKHR,
         target_extent: vk::Extent2D,
         descriptor_set_layout: vk::DescriptorSetLayout,
@@ -195,8 +196,8 @@ impl SurfaceObjectManager {
 
     // TODO:
     #[deprecated(since = "TBD", note = "to be replaced with RAII")]
-    pub unsafe fn destroy(&mut self, instance: &Instance, device: &ash::Device) {
-        self.sized.destroy(instance, device);
+    pub unsafe fn destroy(&mut self, device: &Device) {
+        self.sized.destroy(device);
         device.destroy_pipeline_layout(self.pipeline_layout, None);
         device.destroy_pipeline(self.graphics_pipeline, None);
         device.destroy_render_pass(self.render_pass, None);
@@ -205,10 +206,10 @@ impl SurfaceObjectManager {
     pub unsafe fn resize(
         &mut self,
         instance: &Instance,
-        device: &ash::Device,
+        device: &Device,
         target_extent: vk::Extent2D,
     ) -> Result<()> {
-        self.sized.destroy(instance, device);
+        self.sized.destroy(device);
         self.sized = SizedObjects::new(
             instance,
             self.physical_device,
@@ -582,7 +583,7 @@ unsafe fn create_depth_buffer(
 unsafe fn create_swap_chain(
     instance: &Instance,
     physical_device: vk::PhysicalDevice,
-    device: &ash::Device,
+    device: &Device,
     surface: vk::SurfaceKHR,
     surface_capabilities: &vk::SurfaceCapabilitiesKHR,
     surface_format: vk::SurfaceFormatKHR,
@@ -617,10 +618,10 @@ unsafe fn create_swap_chain(
             .queue_family_indices(&queue_family_indices);
     }
 
-    // TODO: Replace with wrapped device
-    let swapchain_ext = ash::khr::swapchain::Device::new(instance, device);
-    let swapchain = swapchain_ext.create_swapchain(&create_info, None)?;
-    let images = swapchain_ext.get_swapchain_images(swapchain)?;
+    let swapchain = device
+        .swapchain_khr()
+        .create_swapchain(&create_info, None)?;
+    let images = device.swapchain_khr().get_swapchain_images(swapchain)?;
 
     Ok((swapchain, images))
 }

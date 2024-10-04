@@ -1,5 +1,6 @@
 use crate::util::IteratorExt;
 use crate::vulkan;
+use crate::Device;
 use crate::Instance;
 use crate::QueueFamilyIndex;
 use crate::QueueFamilyIndices;
@@ -36,7 +37,7 @@ pub struct Renderer {
     _vulkan: Vulkan,
     instance: Instance,
     surface: vk::SurfaceKHR,
-    device: ash::Device,
+    device: ManuallyDrop<Device>,
     graphics_queue: vk::Queue,
     present_queue: vk::Queue,
     command_pool: vk::CommandPool,
@@ -99,6 +100,8 @@ impl Renderer {
                 surface,
                 Self::DEVICE_EXTENSIONS,
             )?;
+
+            let device = ManuallyDrop::new(Device::new(&instance, device));
 
             // TODO: fetched repetitively
             let queue_families =
@@ -206,8 +209,6 @@ impl Renderer {
     }
 
     pub unsafe fn draw_frame(&mut self) -> Result<bool> {
-        let swapchain_device = ash::khr::swapchain::Device::new(&self.instance, &self.device);
-
         let in_flight = self.sync_objects.get_in_flight(self.frame_index);
         let image_available = self.sync_objects.get_image_available(self.frame_index);
         let render_finished = self.sync_objects.get_render_finished(self.frame_index);
@@ -215,7 +216,7 @@ impl Renderer {
 
         self.device.wait_for_fences(&[in_flight], true, u64::MAX)?;
 
-        let image_index = match swapchain_device.acquire_next_image(
+        let image_index = match self.device.swapchain_khr().acquire_next_image(
             self.swapchain(),
             u64::MAX,
             image_available,
@@ -274,7 +275,10 @@ impl Renderer {
 
         self.frame_index = (self.frame_index + 1) % Self::MAX_FRAMES_IN_FLIGHT;
 
-        let result = swapchain_device.queue_present(self.present_queue, &present_info);
+        let result = self
+            .device
+            .swapchain_khr()
+            .queue_present(self.present_queue, &present_info);
 
         match result {
             Ok(false) => Ok(false),
@@ -398,7 +402,7 @@ impl Drop for Renderer {
             self.device.free_memory(self.index_memory, None);
             self.device.destroy_buffer(self.vertex_buffer, None);
             self.device.free_memory(self.vertex_memory, None);
-            self.surface_objects.destroy(&self.instance, &self.device);
+            self.surface_objects.destroy(&self.device);
             self.device.destroy_sampler(self.sampler, None);
             for buffer in std::mem::take(&mut self.uniform_buffers) {
                 self.device.destroy_buffer(buffer, None);
@@ -413,9 +417,9 @@ impl Drop for Renderer {
                 .free_command_buffers(self.command_pool, &self.command_buffers);
             self.device.destroy_command_pool(self.command_pool, None);
 
-            //self.device.device_wait_idle();
-            self.device.destroy_device(None);
+            ManuallyDrop::drop(&mut self.device);
 
+            // TODO: RAII instance
             self.instance
                 .surface_khr()
                 .destroy_surface(self.surface, None);

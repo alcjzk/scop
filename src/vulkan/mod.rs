@@ -1,4 +1,5 @@
 mod command_buffer;
+mod device;
 mod instance;
 mod queue_family_indices;
 mod renderer;
@@ -7,6 +8,7 @@ mod sync_object_store;
 mod texture;
 
 pub use command_buffer::*;
+pub use device::*;
 pub use instance::*;
 pub use queue_family_indices::*;
 pub use renderer::*;
@@ -15,7 +17,7 @@ pub use sync_object_store::*;
 pub use texture::*;
 
 use crate::{Error, Result};
-use ash::{self, vk};
+use ash::vk;
 
 pub unsafe fn find_supported_format(
     instance: &ash::Instance,
