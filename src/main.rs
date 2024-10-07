@@ -4,6 +4,7 @@
 
 mod error;
 mod math;
+mod obj;
 mod ubo;
 mod util;
 mod vertex;
@@ -11,6 +12,7 @@ mod vulkan;
 
 pub use error::*;
 pub use math::*;
+pub use obj::*;
 pub use ubo::*;
 pub use vertex::*;
 pub use vulkan::*;
