@@ -1,29 +1,10 @@
-#![feature(try_find)]
-#![allow(clippy::missing_safety_doc)]
-#![allow(clippy::too_many_arguments)]
-
-mod error;
-mod math;
-mod obj;
-mod ubo;
-mod util;
-mod vertex;
-mod vulkan;
-
-pub use error::*;
-pub use math::*;
-pub use obj::*;
-pub use ubo::*;
-pub use vertex::*;
-pub use vulkan::*;
+use scop::{Result, Error, Renderer, Vertex, ColorRGB, Vector};
 
 use ash::vk;
 use std::env;
 use std::path::Path;
 
 use glfw::{fail_on_errors, Action, ClientApiHint, Key, WindowHint, WindowMode};
-
-type Result<T, E = Error> = std::result::Result<T, E>;
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
