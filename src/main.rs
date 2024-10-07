@@ -1,4 +1,4 @@
-use scop::{Result, Error, Renderer, Vertex, ColorRGB, Vector};
+use scop::{ColorRGB, Error, Renderer, Result, Vector, Vertex};
 
 use ash::vk;
 use std::env;
