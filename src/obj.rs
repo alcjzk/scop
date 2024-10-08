@@ -3,9 +3,8 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io::{BufRead, BufReader, Read};
 
-use crate::bail;
 use crate::math::{Vector2, Vector3};
-use crate::Result;
+use crate::{bail, Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Keyword {
@@ -13,6 +12,7 @@ pub enum Keyword {
     TextureVertex,
     // VertexNormal,
     // ParameterSpaceVertex,
+    Face,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +41,7 @@ impl TryFrom<&str> for Keyword {
         let keyword = match token {
             "v" => GeometricVertex,
             "vt" => TextureVertex,
+            "f" => Face,
             unknown => return Err(UnknownKeywordError::new(unknown)),
         };
 
@@ -52,6 +53,8 @@ impl TryFrom<&str> for Keyword {
 pub struct Obj {
     pub geometric_vertices: Vec<Vector3<f32>>,
     pub texture_vertices: Vec<Vector2<f32>>,
+    pub geometric_indices: Vec<isize>,
+    pub texture_indices: Vec<isize>,
     pub unknown_keywords: HashMap<String, usize>,
 }
 
@@ -88,6 +91,14 @@ impl Obj {
                 }
                 Keyword::TextureVertex => {
                     result.texture_vertices.push(parse_vector2(tokens)?);
+                }
+                Keyword::Face => {
+                    let face = parse_face(tokens)?;
+
+                    for (geometric_index, texture_index) in face {
+                        result.geometric_indices.push(geometric_index);
+                        result.texture_indices.push(texture_index);
+                    }
                 }
             }
         }
@@ -145,4 +156,33 @@ pub fn parse_vector2<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Result<Ve
     }
 
     Ok(Vector2::from_array(result))
+}
+
+pub fn parse_face<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Result<[(isize, isize); 3]> {
+    let mut faces: [(isize, isize); 3] = [(0, 0); 3];
+
+    for (idx, item) in faces.iter_mut().enumerate() {
+        let token = tokens.next().ok_or(TokenCountError::new(3, idx))?;
+        let mut indices = token.split('/');
+
+        let geometric_index = indices
+            .next()
+            .ok_or(Error::Generic("face does not define a geometric index"))?
+            .parse()?;
+
+        let texture_index = indices
+            .next()
+            .ok_or(Error::Generic("face does not define a texture index"))?
+            .parse()?;
+
+        let _normal_index = indices.next();
+
+        *item = (geometric_index, texture_index);
+    }
+
+    if tokens.next().is_some() {
+        bail!(Error::Generic("non polygonal faces not supported"));
+    }
+
+    Ok(faces)
 }
