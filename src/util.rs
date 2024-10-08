@@ -26,3 +26,10 @@ pub trait IteratorExt: Iterator {
 }
 
 impl<T: Iterator> IteratorExt for T {}
+
+macro_rules! bail {
+    ($e:expr) => {
+        return Err($e.into());
+    };
+}
+pub(crate) use bail;

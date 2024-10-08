@@ -14,6 +14,7 @@ pub use error::*;
 pub use math::*;
 pub use obj::*;
 pub use ubo::*;
+pub use util::*;
 pub use vertex::*;
 pub use vulkan::*;
 
