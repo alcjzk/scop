@@ -22,8 +22,9 @@ pub trait Dot {
 }
 
 pub trait Cross {
+    type Output;
     /// Returns the cross product or `self` and `rhs`.
-    fn cross(self, rhs: Self) -> Self;
+    fn cross(self, rhs: Self) -> Self::Output;
 }
 
 #[repr(C)]
@@ -148,11 +149,24 @@ impl<T, const N: usize> From<[T; N]> for Vector<T, N> {
     }
 }
 
+impl<T> Cross for Vector2<T>
+where
+    T: Copy + Sub<Output = T> + Mul<Output = T>,
+{
+    type Output = T;
+
+    fn cross(self, rhs: Self) -> Self::Output {
+        self[0] * rhs[1] - self[1] * rhs[0]
+    }
+}
+
 impl<T> Cross for Vector<T, 3>
 where
     T: Copy + Sub<Output = T> + Mul<Output = T>,
 {
-    fn cross(self, rhs: Self) -> Self {
+    type Output = Self;
+
+    fn cross(self, rhs: Self) -> Self::Output {
         Self([
             self[1] * rhs[2] - rhs[1] * self[2],
             self[2] * rhs[0] - rhs[2] * self[0],
