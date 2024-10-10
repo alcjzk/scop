@@ -6,6 +6,8 @@ use std::io::{BufRead, BufReader, Read};
 use crate::math::{Vector2, Vector3};
 use crate::{bail, Error, Result};
 
+pub type VertexIndex = isize;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Keyword {
     GeometricVertex,
@@ -53,8 +55,9 @@ impl TryFrom<&str> for Keyword {
 pub struct Obj {
     pub geometric_vertices: Vec<Vector3<f32>>,
     pub texture_vertices: Vec<Vector2<f32>>,
-    pub geometric_indices: Vec<isize>,
-    pub texture_indices: Vec<isize>,
+    pub geometric_indices: Vec<VertexIndex>,
+    pub texture_indices: Vec<VertexIndex>,
+    pub face_vertex_counts: Vec<usize>,
     pub unknown_keywords: HashMap<String, usize>,
 }
 
@@ -93,12 +96,22 @@ impl Obj {
                     result.texture_vertices.push(parse_vector2(tokens)?);
                 }
                 Keyword::Face => {
-                    let face = parse_face(tokens)?;
+                    let mut count = 0;
 
-                    for (geometric_index, texture_index) in face {
-                        result.geometric_indices.push(geometric_index);
-                        result.texture_indices.push(texture_index);
+                    for face in Faces::new(tokens) {
+                        let face = face?;
+                        result.geometric_indices.push(face.geometric_index);
+
+                        if let Some(texture_index) = face.texture_index {
+                            result.texture_indices.push(texture_index);
+                        }
+
+                        // TODO: Enforce consistent format?
+
+                        count += 1;
                     }
+
+                    result.face_vertex_counts.push(count);
                 }
             }
         }
@@ -106,6 +119,9 @@ impl Obj {
     }
     pub fn is_single_index(&self) -> bool {
         self.geometric_indices == self.texture_indices
+    }
+    pub fn is_triangle_only(&self) -> bool {
+        self.face_vertex_counts.iter().copied().all(|c| c == 3)
     }
 }
 
@@ -161,32 +177,54 @@ pub fn parse_vector2<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Result<Ve
     Ok(Vector2::from_array(result))
 }
 
-pub fn parse_face<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Result<[(isize, isize); 3]> {
-    let mut faces: [(isize, isize); 3] = [(0, 0); 3];
+#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+pub struct Face {
+    pub geometric_index: VertexIndex,
+    pub texture_index: Option<VertexIndex>,
+    pub normal_index: Option<VertexIndex>,
+}
 
-    for (idx, item) in faces.iter_mut().enumerate() {
-        let token = tokens.next().ok_or(TokenCountError::new(3, idx))?;
-        let mut indices = token.split('/');
-
-        let geometric_index = indices
+impl Face {
+    pub fn from_tokens<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Result<Self> {
+        let geometric_index = tokens
             .next()
             .ok_or(Error::Generic("face does not define a geometric index"))?
             .parse()?;
+        let texture_index = tokens.next().map(|t| t.parse()).transpose()?;
+        let normal_index = tokens.next().map(|t| t.parse()).transpose()?;
 
-        let texture_index = indices
-            .next()
-            .ok_or(Error::Generic("face does not define a texture index"))?
-            .parse()?;
-
-        let _normal_index = indices.next();
-
-        *item = (geometric_index, texture_index);
+        Ok(Self {
+            geometric_index,
+            texture_index,
+            normal_index,
+        })
     }
-
-    if tokens.next().is_some() {
-        bail!(Error::Generic("non polygonal faces not supported"));
-    }
-
-    Ok(faces)
 }
 
+#[must_use = "iterators are lazy and do nothing unless consumed"]
+#[derive(Debug, Clone, Copy)]
+struct Faces<I> {
+    tokens: I,
+}
+
+impl<T> Faces<T> {
+    fn new<'a>(tokens: T) -> Self
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        Self { tokens }
+    }
+}
+
+impl<'a, I> Iterator for Faces<I>
+where
+    I: Iterator<Item = &'a str>,
+{
+    type Item = Result<Face>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index_tokens = self.tokens.next()?.split('/');
+
+        Some(Face::from_tokens(index_tokens))
+    }
+}

@@ -15,8 +15,11 @@ fn main() -> Result<()> {
     println!("Texture vertices: {}", obj.texture_vertices.len());
     println!("Geometric indices: {}", obj.geometric_indices.len());
     println!("Texture indices: {}", obj.texture_indices.len());
+    println!("Face vertex counts: {}", obj.face_vertex_counts.len());
+    println!("--");
     println!("Is single index: {}", obj.is_single_index());
-
+    println!("Is triangle only: {}", obj.is_triangle_only());
+    println!("--");
     println!("Unknown keywords:");
     for (keyword, count) in obj.unknown_keywords.iter() {
         println!("- '{keyword}': {count}");
