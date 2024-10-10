@@ -104,6 +104,9 @@ impl Obj {
         }
         Ok(result)
     }
+    pub fn is_single_index(&self) -> bool {
+        self.geometric_indices == self.texture_indices
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -186,3 +189,4 @@ pub fn parse_face<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Result<[(isi
 
     Ok(faces)
 }
+

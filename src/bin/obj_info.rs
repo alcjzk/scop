@@ -11,7 +11,16 @@ fn main() -> Result<()> {
     let file = OpenOptions::new().read(true).open(path)?;
     let obj = Obj::from_reader(&file)?;
 
-    println!("{obj:#?}");
+    println!("Geometric vertices: {}", obj.geometric_vertices.len());
+    println!("Texture vertices: {}", obj.texture_vertices.len());
+    println!("Geometric indices: {}", obj.geometric_indices.len());
+    println!("Texture indices: {}", obj.texture_indices.len());
+    println!("Is single index: {}", obj.is_single_index());
+
+    println!("Unknown keywords:");
+    for (keyword, count) in obj.unknown_keywords.iter() {
+        println!("- '{keyword}': {count}");
+    }
 
     Ok(())
 }
