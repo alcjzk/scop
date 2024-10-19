@@ -98,11 +98,11 @@ impl Obj {
                 Keyword::Face => {
                     let mut count = 0;
 
-                    for face in Faces::new(tokens) {
-                        let face = face?;
-                        result.geometric_indices.push(face.geometric_index);
+                    for vertices in FaceVertices::new(tokens) {
+                        let vertices = vertices?;
+                        result.geometric_indices.push(vertices.geometric_index);
 
-                        if let Some(texture_index) = face.texture_index {
+                        if let Some(texture_index) = vertices.texture_index {
                             result.texture_indices.push(texture_index);
                         }
 
@@ -177,14 +177,15 @@ pub fn parse_vector2<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Result<Ve
     Ok(Vector2::from_array(result))
 }
 
+/// Generic set of indices for a single face vertex.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
-pub struct Face {
+pub struct FaceVertexIndices {
     pub geometric_index: VertexIndex,
     pub texture_index: Option<VertexIndex>,
     pub normal_index: Option<VertexIndex>,
 }
 
-impl Face {
+impl FaceVertexIndices {
     pub fn from_tokens<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Result<Self> {
         let geometric_index = tokens
             .next()
@@ -201,13 +202,14 @@ impl Face {
     }
 }
 
+/// Iterator over vertices of a face.
 #[must_use = "iterators are lazy and do nothing unless consumed"]
 #[derive(Debug, Clone, Copy)]
-struct Faces<I> {
+struct FaceVertices<I> {
     tokens: I,
 }
 
-impl<T> Faces<T> {
+impl<T> FaceVertices<T> {
     fn new<'a>(tokens: T) -> Self
     where
         T: Iterator<Item = &'a str>,
@@ -216,15 +218,15 @@ impl<T> Faces<T> {
     }
 }
 
-impl<'a, I> Iterator for Faces<I>
+impl<'a, I> Iterator for FaceVertices<I>
 where
     I: Iterator<Item = &'a str>,
 {
-    type Item = Result<Face>;
+    type Item = Result<FaceVertexIndices>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let index_tokens = self.tokens.next()?.split('/');
 
-        Some(Face::from_tokens(index_tokens))
+        Some(FaceVertexIndices::from_tokens(index_tokens))
     }
 }
