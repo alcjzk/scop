@@ -123,6 +123,49 @@ impl Obj {
     pub fn is_triangle_only(&self) -> bool {
         self.face_vertex_counts.iter().copied().all(|c| c == 3)
     }
+    pub fn triangulate(self) -> Self {
+        let triangle_count = self
+            .face_vertex_counts
+            .iter()
+            .copied()
+            .fold(0, |accumulator, vertex_count| {
+                accumulator + (3 * (vertex_count - 2))
+            });
+
+        let mut geometric_indices = Vec::with_capacity(triangle_count);
+        let mut texture_indices = match self.texture_indices.is_empty() {
+            true => vec![],
+            false => Vec::with_capacity(triangle_count),
+        };
+
+        for (face_idx, mut count) in self.face_vertex_counts.iter().copied().enumerate() {
+            while count > 3 {
+                geometric_indices.push(self.geometric_indices[face_idx]);
+                geometric_indices.push(self.geometric_indices[face_idx + count - 1]);
+                geometric_indices.push(self.geometric_indices[face_idx + count - 2]);
+
+                if !self.texture_indices.is_empty() {
+                    texture_indices.push(self.texture_indices[face_idx]);
+                    texture_indices.push(self.texture_indices[face_idx + count - 1]);
+                    texture_indices.push(self.texture_indices[face_idx + count - 2]);
+                }
+
+                count -= 1;
+            }
+
+            geometric_indices.extend(&self.geometric_indices[face_idx..3]);
+            texture_indices.extend(&self.texture_indices[face_idx..3]);
+        }
+
+        debug_assert_eq!(geometric_indices.capacity(), triangle_count);
+
+        Self {
+            geometric_indices,
+            texture_indices,
+            face_vertex_counts: vec![],
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
