@@ -1,7 +1,8 @@
-use scop::{ColorRGB, Error, Renderer, Result, Vector, Vertex};
+use scop::{ColorRGB, Error, Obj, Renderer, Result, Vertex};
 
 use ash::vk;
 use std::env;
+use std::fs::OpenOptions;
 use std::path::Path;
 
 use glfw::{fail_on_errors, Action, ClientApiHint, Key, WindowHint, WindowMode};
@@ -29,7 +30,7 @@ fn main() -> Result<()> {
 
     window.set_key_polling(true);
 
-    let (vertices, indices) = load_model(obj_path)?;
+    let (vertices, indices) = load_model(&obj_path)?;
 
     let mut renderer = Renderer::new(&glfw, &window, vertices, indices, texture_path)?;
 
@@ -66,32 +67,57 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+//pub fn load_model<P: AsRef<Path> + std::fmt::Debug>(
+//    path: P,
+//) -> Result<(Vec<Vertex<f32>>, Vec<u16>)> {
+//    let (models, _) = tobj::load_obj(path, &tobj::GPU_LOAD_OPTIONS)?;
+//
+//    let mut vertices = vec![];
+//    let mut indices = vec![];
+//
+//    for model in models {
+//        for index in model.mesh.indices {
+//            let vertex = Vertex {
+//                position: Vector::from_array([
+//                    model.mesh.positions[(3 * index) as usize],
+//                    model.mesh.positions[(3 * index + 1) as usize],
+//                    model.mesh.positions[(3 * index + 2) as usize],
+//                ]),
+//                texture_position: Vector::from_array([
+//                    model.mesh.texcoords[(2 * index) as usize],
+//                    1.0 - model.mesh.texcoords[(2 * index + 1) as usize],
+//                ]),
+//                color: ColorRGB::RED,
+//            };
+//
+//            vertices.push(vertex);
+//            indices.push(indices.len() as _);
+//        }
+//    }
+//
+//    Ok((vertices, indices))
+//}
+
 pub fn load_model<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
 ) -> Result<(Vec<Vertex<f32>>, Vec<u16>)> {
-    let (models, _) = tobj::load_obj(path, &tobj::GPU_LOAD_OPTIONS)?;
+    let file = OpenOptions::new().read(true).open(path)?;
+    let obj = Obj::from_reader(&file)?.make_single_index();
 
     let mut vertices = vec![];
     let mut indices = vec![];
 
-    for model in models {
-        for index in model.mesh.indices {
-            let vertex = Vertex {
-                position: Vector::from_array([
-                    model.mesh.positions[(3 * index) as usize],
-                    model.mesh.positions[(3 * index + 1) as usize],
-                    model.mesh.positions[(3 * index + 2) as usize],
-                ]),
-                texture_position: Vector::from_array([
-                    model.mesh.texcoords[(2 * index) as usize],
-                    1.0 - model.mesh.texcoords[(2 * index + 1) as usize],
-                ]),
-                color: ColorRGB::RED,
-            };
+    for index in obj.geometric_indices {
+        let mut vertex = Vertex {
+            position: obj.geometric_vertices[index as usize],
+            texture_position: obj.texture_vertices[index as usize],
+            color: ColorRGB::RED,
+        };
 
-            vertices.push(vertex);
-            indices.push(indices.len() as _);
-        }
+        vertex.texture_position[1] = 1.0 - vertex.texture_position[1];
+
+        vertices.push(vertex);
+        indices.push(indices.len() as _);
     }
 
     Ok((vertices, indices))

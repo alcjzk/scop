@@ -118,12 +118,16 @@ impl Obj {
         Ok(result)
     }
     pub fn is_single_index(&self) -> bool {
+        if self.texture_indices.is_empty() {
+            return true;
+        }
         self.geometric_indices == self.texture_indices
     }
     pub fn is_triangle_only(&self) -> bool {
         self.face_vertex_counts.iter().copied().all(|c| c == 3)
     }
     pub fn triangulate(self) -> Self {
+        // TODO: Enforce vertex counts >= 3?
         let triangle_count = self
             .face_vertex_counts
             .iter()
@@ -153,8 +157,8 @@ impl Obj {
                 count -= 1;
             }
 
-            geometric_indices.extend(&self.geometric_indices[face_idx..3]);
-            texture_indices.extend(&self.texture_indices[face_idx..3]);
+            geometric_indices.extend(&self.geometric_indices[face_idx..face_idx + 3]);
+            texture_indices.extend(&self.texture_indices[face_idx..face_idx + 3]);
         }
 
         debug_assert_eq!(geometric_indices.capacity(), triangle_count);
@@ -165,6 +169,32 @@ impl Obj {
             face_vertex_counts: vec![],
             ..self
         }
+    }
+    pub fn make_single_index(mut self) -> Self {
+        if self.texture_vertices.is_empty() {
+            return self;
+        }
+
+        // TODO: Guarantee with format
+        debug_assert_eq!(self.geometric_vertices.len(), self.texture_vertices.len());
+
+        for (geometric_index, texture_index) in self
+            .geometric_indices
+            .iter_mut()
+            .zip(self.texture_indices.iter_mut())
+        {
+            if *geometric_index != *texture_index {
+                self.geometric_vertices
+                    .push(self.geometric_vertices[*geometric_index as usize]);
+                *geometric_index = (self.geometric_vertices.len() - 1) as _;
+                self.texture_vertices
+                    .push(self.texture_vertices[*texture_index as usize]);
+                *texture_index = (self.texture_vertices.len() - 1) as _;
+                debug_assert_eq!(*geometric_index, *texture_index);
+            }
+        }
+
+        self
     }
 }
 
@@ -233,9 +263,18 @@ impl FaceVertexIndices {
         let geometric_index = tokens
             .next()
             .ok_or(Error::Generic("face does not define a geometric index"))?
-            .parse()?;
-        let texture_index = tokens.next().map(|t| t.parse()).transpose()?;
-        let normal_index = tokens.next().map(|t| t.parse()).transpose()?;
+            .parse::<VertexIndex>()?
+            - 1;
+
+        let texture_index = tokens
+            .next()
+            .map(|t| -> Result<_> { Ok(t.parse::<VertexIndex>()? - 1) })
+            .transpose()?;
+
+        let normal_index = tokens
+            .next()
+            .map(|t| -> Result<_> { Ok(t.parse::<VertexIndex>()? - 1) })
+            .transpose()?;
 
         Ok(Self {
             geometric_index,
