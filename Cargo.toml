@@ -17,6 +17,4 @@ path = "src/bin/obj_info.rs"
 [dependencies]
 glfw = { version = "0.58.0", features = ["vulkan"] }
 ash = { version =  "0.38.0", features = ["loaded"] }
-image = "0.25.2"
-tobj = "4.0.2"
 
