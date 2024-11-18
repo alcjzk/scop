@@ -3,6 +3,7 @@
 #![allow(clippy::too_many_arguments)]
 
 mod error;
+mod input_manager;
 mod math;
 mod obj;
 mod ubo;
@@ -11,6 +12,7 @@ mod vertex;
 mod vulkan;
 
 pub use error::*;
+pub use input_manager::*;
 pub use math::*;
 pub use obj::*;
 pub use ubo::*;
