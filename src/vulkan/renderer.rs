@@ -73,7 +73,9 @@ pub struct Renderer {
 
 impl Renderer {
     const INSTANCE_EXTENSIONS: &[&CStr] = &[
+        #[cfg(target_os = "macos")]
         vk::KHR_PORTABILITY_ENUMERATION_NAME,
+        #[cfg(target_os = "macos")]
         vk::KHR_GET_PHYSICAL_DEVICE_PROPERTIES2_NAME,
     ];
 
@@ -83,6 +85,7 @@ impl Renderer {
         vk::KHR_PORTABILITY_SUBSET_NAME,
     ];
 
+    // TODO: Warn on missing validation layers instead of erroring
     const VALIDATION_LAYERS: &[&CStr] = &[
         #[cfg(debug_assertions)]
         c"VK_LAYER_KHRONOS_validation",
