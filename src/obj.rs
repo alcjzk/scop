@@ -5,7 +5,6 @@ use std::io::{BufRead, BufReader, Read};
 
 use crate::math::{Vector2, Vector3};
 use crate::{bail, Error, Result};
-
 pub type VertexIndex = isize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -142,23 +141,29 @@ impl Obj {
             false => Vec::with_capacity(triangle_count),
         };
 
-        for (face_idx, mut count) in self.face_vertex_counts.iter().copied().enumerate() {
-            while count > 3 {
-                geometric_indices.push(self.geometric_indices[face_idx]);
-                geometric_indices.push(self.geometric_indices[face_idx + count - 1]);
-                geometric_indices.push(self.geometric_indices[face_idx + count - 2]);
+        let mut offset = 0;
+        for mut vertex_count in self.face_vertex_counts.iter().copied() {
+            let next_offset = offset + vertex_count;
+
+            while vertex_count > 3 {
+                geometric_indices.push(self.geometric_indices[offset]);
+                geometric_indices.push(self.geometric_indices[offset + vertex_count - 1]);
+                geometric_indices.push(self.geometric_indices[offset + vertex_count - 2]);
 
                 if !self.texture_indices.is_empty() {
-                    texture_indices.push(self.texture_indices[face_idx]);
-                    texture_indices.push(self.texture_indices[face_idx + count - 1]);
-                    texture_indices.push(self.texture_indices[face_idx + count - 2]);
+                    texture_indices.push(self.texture_indices[offset]);
+                    texture_indices.push(self.texture_indices[offset + vertex_count - 1]);
+                    texture_indices.push(self.texture_indices[offset + vertex_count - 2]);
                 }
 
-                count -= 1;
+                vertex_count -= 1;
             }
 
-            geometric_indices.extend(&self.geometric_indices[face_idx..face_idx + 3]);
-            texture_indices.extend(&self.texture_indices[face_idx..face_idx + 3]);
+            geometric_indices.extend(&self.geometric_indices[offset..offset + 3]);
+            if !self.texture_indices.is_empty() {
+                texture_indices.extend(&self.texture_indices[offset..offset + 3]);
+            }
+            offset = next_offset;
         }
 
         debug_assert_eq!(geometric_indices.capacity(), triangle_count);
