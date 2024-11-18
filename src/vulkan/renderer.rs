@@ -1,9 +1,13 @@
+use crate::math;
 use crate::util::IteratorExt;
 use crate::vulkan;
 use crate::Device;
+use crate::InputManager;
 use crate::Instance;
 use crate::QueueFamilyIndex;
 use crate::QueueFamilyIndices;
+use crate::Vector;
+use crate::Vector3;
 use crate::Vertex;
 use crate::{Error, Result, SurfaceObjectManager, SyncObjectStore, Texture, UniformBufferObject};
 use crate::{Matrix, SurfaceSupportDetails};
@@ -18,6 +22,7 @@ use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::ptr;
 use std::ptr::NonNull;
+use std::time::Duration;
 
 pub struct MappedArray<T> {
     ptr: *mut T,
@@ -58,6 +63,12 @@ pub struct Renderer {
     texture: ManuallyDrop<Texture>,
     frame_index: u32,
     descriptor_sets: Vec<vk::DescriptorSet>,
+    origin: Vector3<f32>,
+    scale: f32,
+    position: Vector3<f32>,
+    texture_opacity: f32,
+    texture_target_opacity: f32,
+    rotation: f32,
 }
 
 impl Renderer {
@@ -179,6 +190,27 @@ impl Renderer {
                 sampler,
             )?;
 
+            let mut min = Vector3::default();
+            let mut max = Vector3::default();
+
+            for [x, y, z] in vertices.iter().copied().map(|v| v.position.0) {
+                min[0] = x.min(min[0]);
+                min[1] = y.min(min[1]);
+                min[2] = z.min(min[2]);
+                max[0] = x.max(max[0]);
+                max[1] = y.max(max[1]);
+                max[2] = z.max(max[2]);
+            }
+
+            let origin = Vector::from_array([
+                (min[0] + max[0]) / 2.0,
+                (min[1] + max[1]) / 2.0,
+                (min[2] + max[2]) / 2.0,
+            ]);
+
+            // TODO: potential divide by zero
+            let scale = 2.0 / (max[0] - min[0]).max(max[1] - min[1]).max(max[2] - min[2]);
+
             Ok(Self {
                 _vulkan: vulkan,
                 instance,
@@ -204,8 +236,38 @@ impl Renderer {
                 texture,
                 frame_index: 0,
                 descriptor_sets,
+                origin,
+                scale,
+                position: Vector::default(),
+                texture_opacity: 1.0,
+                texture_target_opacity: 1.0,
+                rotation: 0.0,
             })
         }
+    }
+
+    pub fn update(&mut self, delta_time: Duration, input: &mut InputManager) {
+        let delta_time_secs = delta_time.as_secs_f32();
+        let direction = Vector::from_array([
+            (input.left as u32 as f32) - (input.right as u32 as f32),
+            (input.up as u32 as f32) - (input.down as u32 as f32),
+            (input.forward as u32 as f32) - (input.backward as u32 as f32),
+        ]);
+
+        if input.toggle_texture() {
+            self.texture_target_opacity = match self.texture_target_opacity {
+                1.0 => 0.0,
+                _ => 1.0,
+            };
+        }
+
+        self.position = self.position + (direction * delta_time_secs);
+        self.texture_opacity = math::lerp(
+            self.texture_opacity,
+            self.texture_target_opacity,
+            delta_time_secs * 5.0,
+        );
+        self.rotation += 20.0 * delta_time_secs % 360.0;
     }
 
     pub unsafe fn draw_frame(&mut self) -> Result<bool> {
@@ -239,12 +301,20 @@ impl Renderer {
         let vk::Extent2D { width, height } = self.image_extent();
         let aspect_ratio = width as f32 / height as f32;
 
+        let translate_offset = self.position + Vector3::from_array([0.0, 0.0, 5.0]);
+
+        let model = Matrix::translate(translate_offset)
+            * Matrix::identity().rotate(self.rotation.to_radians(), [0.0, 1.0, 0.0])
+            * Matrix::scale(self.scale)
+            * Matrix::translate(self.origin * -1.0);
+
         let mut ubo = UniformBufferObject {
-            model: Matrix::identity().rotate(-20.0f32.to_radians(), [0.0, 0.0, 1.0]),
-            view: Matrix::look_at([2.0, 2.0, 2.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            model,
+            view: Matrix::look_at([0.0, 0.0, 1.0], [0.0, 0.0, 10.0], [0.0, 1.0, 0.0]),
             projection: Matrix::perspective(45.0f32.to_radians(), aspect_ratio, 0.1, 10.0),
+            texture_opacity: self.texture_opacity,
         };
-        ubo.projection[1][1] *= -1.0; // TODO: Do elsewhere?
+        ubo.projection[1][1] *= -1.0;
 
         self.uniform_buffers_mapped.as_mut_slice()[self.frame_index as usize] = ubo;
 
@@ -285,6 +355,10 @@ impl Renderer {
             Err(error) if error != vk::Result::ERROR_OUT_OF_DATE_KHR => Err(error.into()),
             _ => Ok(true),
         }
+    }
+
+    pub fn offset_mut(&mut self) -> &mut Vector3<f32> {
+        &mut self.position
     }
 
     unsafe fn record_command_buffer(
@@ -666,7 +740,7 @@ unsafe fn create_descriptor_set_layout(device: &ash::Device) -> Result<vk::Descr
         .binding(0)
         .descriptor_count(1)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-        .stage_flags(vk::ShaderStageFlags::VERTEX);
+        .stage_flags(vk::ShaderStageFlags::ALL); // TODO: Swap out
 
     let sampler_binding = vk::DescriptorSetLayoutBinding::default()
         .binding(1)
@@ -748,7 +822,7 @@ unsafe fn create_texture_sampler(
         .address_mode_u(vk::SamplerAddressMode::REPEAT)
         .address_mode_v(vk::SamplerAddressMode::REPEAT)
         .address_mode_w(vk::SamplerAddressMode::REPEAT)
-        .anisotropy_enable(true)
+        .anisotropy_enable(false) // TODO: Enabling this causes issues with WSL
         .max_anisotropy(physical_device_properties.limits.max_sampler_anisotropy)
         .border_color(vk::BorderColor::INT_OPAQUE_BLACK)
         .unnormalized_coordinates(false)
@@ -798,7 +872,6 @@ unsafe fn create_buffer_device_local<V>(
     let staging_memory = device.allocate_memory(&staging_alloc_info, None)?;
 
     device.bind_buffer_memory(staging_buffer, staging_memory, 0)?;
-
     {
         let staging_data = device.map_memory(
             staging_memory,

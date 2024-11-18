@@ -1,9 +1,10 @@
-use scop::{ColorRGB, Error, Obj, Renderer, Result, Vertex};
+use scop::{ColorRGB, Error, InputManager, Obj, Renderer, Result, Vector2, Vector3, Vertex};
 
 use ash::vk;
 use std::env;
 use std::fs::OpenOptions;
 use std::path::Path;
+use std::time::Instant;
 
 use glfw::{fail_on_errors, Action, ClientApiHint, Key, WindowHint, WindowMode};
 
@@ -32,16 +33,16 @@ fn main() -> Result<()> {
 
     let (vertices, indices) = load_model(&obj_path)?;
 
+    let mut input_manager = InputManager::new();
     let mut renderer = Renderer::new(&glfw, &window, vertices, indices, texture_path)?;
 
+    let mut time = Instant::now();
     while !window.should_close() {
         glfw.poll_events();
 
         let mut should_resize = unsafe { renderer.draw_frame()? };
 
         for (_, event) in glfw::flush_messages(&events) {
-            println!("{event:#?}");
-
             match event {
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     window.set_should_close(true);
@@ -49,9 +50,16 @@ fn main() -> Result<()> {
                 glfw::WindowEvent::FramebufferSize(_, _) => {
                     should_resize = true;
                 }
+                glfw::WindowEvent::Key(key, _, action, _) => {
+                    input_manager.handle_key_event(key, action);
+                }
                 _ => {}
             }
         }
+
+        let time_next = Instant::now();
+        renderer.update(time_next.duration_since(time), &mut input_manager);
+        time = time_next;
 
         if should_resize {
             unsafe {
@@ -67,57 +75,43 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-//pub fn load_model<P: AsRef<Path> + std::fmt::Debug>(
-//    path: P,
-//) -> Result<(Vec<Vertex<f32>>, Vec<u16>)> {
-//    let (models, _) = tobj::load_obj(path, &tobj::GPU_LOAD_OPTIONS)?;
-//
-//    let mut vertices = vec![];
-//    let mut indices = vec![];
-//
-//    for model in models {
-//        for index in model.mesh.indices {
-//            let vertex = Vertex {
-//                position: Vector::from_array([
-//                    model.mesh.positions[(3 * index) as usize],
-//                    model.mesh.positions[(3 * index + 1) as usize],
-//                    model.mesh.positions[(3 * index + 2) as usize],
-//                ]),
-//                texture_position: Vector::from_array([
-//                    model.mesh.texcoords[(2 * index) as usize],
-//                    1.0 - model.mesh.texcoords[(2 * index + 1) as usize],
-//                ]),
-//                color: ColorRGB::RED,
-//            };
-//
-//            vertices.push(vertex);
-//            indices.push(indices.len() as _);
-//        }
-//    }
-//
-//    Ok((vertices, indices))
-//}
-
 pub fn load_model<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
 ) -> Result<(Vec<Vertex<f32>>, Vec<u16>)> {
     let file = OpenOptions::new().read(true).open(path)?;
-    let obj = Obj::from_reader(&file)?.make_single_index();
+    let obj = Obj::from_reader(&file)?.triangulate().make_single_index();
 
     let mut vertices = vec![];
     let mut indices = vec![];
 
-    for index in obj.geometric_indices {
+    let mut shade = 20.0;
+    let mut color = ColorRGB(Vector3::from_array([shade, shade, shade]));
+
+    for (n, index) in obj.geometric_indices.iter().copied().enumerate() {
+        let position = obj.geometric_vertices[index as usize];
+        let texture_position = match obj.texture_vertices.is_empty() {
+            true => Vector2::from_array([position[2], position[1]]),
+            false => obj.texture_vertices[index as usize],
+        };
+
         let mut vertex = Vertex {
-            position: obj.geometric_vertices[index as usize],
-            texture_position: obj.texture_vertices[index as usize],
-            color: ColorRGB::RED,
+            position,
+            texture_position,
+            color,
         };
 
         vertex.texture_position[1] = 1.0 - vertex.texture_position[1];
 
         vertices.push(vertex);
         indices.push(indices.len() as _);
+        if n % 3 == 0 {
+            shade = (shade + 10.0) % 128.0;
+        }
+        color = ColorRGB(Vector3::from_array([
+            shade / 255.0,
+            shade / 255.0,
+            shade / 255.0,
+        ]));
     }
 
     Ok((vertices, indices))
