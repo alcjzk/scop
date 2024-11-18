@@ -10,7 +10,7 @@ pub struct Vertex<T: Copy> {
 
 #[repr(transparent)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct ColorRGB<T: Copy>(Vector3<T>);
+pub struct ColorRGB<T: Copy>(pub Vector3<T>);
 
 impl ColorRGB<f32> {
     pub const RED: Self = Self(Vector3::from_array([1.0, 0.0, 0.0]));
