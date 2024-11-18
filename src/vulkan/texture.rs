@@ -1,8 +1,10 @@
 use crate::vulkan;
+use crate::IteratorExt;
+use crate::Ppm;
 use crate::Result;
 
 use ash::vk;
-use image::ImageReader;
+use std::fs::OpenOptions;
 use std::path::Path;
 use std::ptr;
 
@@ -22,11 +24,19 @@ impl Texture {
         command_pool: vk::CommandPool,
         queue: vk::Queue,
     ) -> Result<Self> {
-        let image = ImageReader::open(path.as_ref())?.decode()?;
-        let data = image.to_rgba8();
-        let (width, height) = data.dimensions();
+        let file = OpenOptions::new().read(true).open(path)?;
 
-        let size = width * height * std::mem::size_of::<image::Rgba<u8>>() as u32;
+        let image = Ppm::from_reader(file)?;
+        let width = image.width as u32;
+        let height = image.height as u32;
+
+        let data = image
+            .data
+            .chunks_exact(Ppm::COLOR_CHANNEL_COUNT)
+            .flat_map(|c| [c[0], c[1], c[2], u8::MAX])
+            .collect_vec();
+
+        let size = width * height * 4;
 
         let staging_buffer_info = vk::BufferCreateInfo::default()
             .size(size as _)
