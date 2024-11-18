@@ -1,6 +1,6 @@
 use std::ops::{Add, Deref, DerefMut, Mul};
 
-use super::Vector;
+use super::{Vector, Vector3};
 
 use super::Cross as _;
 
@@ -39,6 +39,28 @@ impl Matrix<f32, 4, 4> {
             [0.0, 0.0, 1.0, 0.0].into(),
             [0.0, 0.0, 0.0, 1.0].into(),
         ])
+    }
+    pub fn translate<O>(offset: O) -> Self
+    where
+        O: Into<Vector3<f32>>,
+    {
+        let offset = offset.into();
+        let mut matrix = Self::identity();
+
+        matrix[3][0] = offset[0];
+        matrix[3][1] = offset[1];
+        matrix[3][2] = offset[2];
+
+        matrix
+    }
+    pub fn scale(scalar: f32) -> Self {
+        let mut matrix = Self::identity();
+
+        matrix[0][0] = scalar;
+        matrix[1][1] = scalar;
+        matrix[2][2] = scalar;
+
+        matrix
     }
     /// Vulkan compatible perspective projection, corresponds to GLM RH ZO.
     pub fn perspective(fov_y: f32, aspect_ratio: f32, near: f32, far: f32) -> Self {
@@ -141,3 +163,42 @@ where
         out
     }
 }
+
+impl<T> Mul<Matrix<T, 4, 4>> for Matrix<T, 4, 4>
+where
+    T: Mul<Output = T> + Add<Output = T> + Default + Copy,
+{
+    type Output = Matrix<T, 4, 4>;
+
+    fn mul(self, rhs: Matrix<T, 4, 4>) -> Self::Output {
+        let mut out = Matrix::default();
+        for i in 0..4 {
+            for j in 0..4 {
+                for k in 0..4 {
+                    out[j][i] = out[j][i] + self[k][i] * rhs[j][k];
+                }
+            }
+        }
+        out
+    }
+}
+
+//impl<T> Mul<Matrix<T, 4, 4>> for Matrix<T, 4, 4>
+//where
+//    T: Mul<Output = T> + Add<Output = T> + Default + Copy,
+//{
+//    type Output = Matrix<T, 4, 4>;
+//
+//    fn mul(self, rhs: Matrix<T, 4, 4>) -> Self::Output {
+//        let mut out = Matrix::default();
+//        for i in 0..4 {
+//            for j in 0..4 {
+//                out[i][j] = self[i][0] * rhs[0][j]
+//                    + self[i][1] * rhs[1][j]
+//                    + self[i][2] * rhs[2][j]
+//                    + self[i][3] * rhs[3][j];
+//            }
+//        }
+//        out
+//    }
+//}

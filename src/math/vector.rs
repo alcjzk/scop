@@ -29,7 +29,7 @@ pub trait Cross {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Vector<T, const N: usize>([T; N]);
+pub struct Vector<T, const N: usize>(pub [T; N]);
 
 impl<T, const N: usize> Default for Vector<T, N>
 where
