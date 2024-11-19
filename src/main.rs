@@ -1,4 +1,4 @@
-use scop::{ColorRGB, Error, InputManager, Obj, Renderer, Result, Vector2, Vector3, Vertex};
+use scop::{Error, InputManager, Obj, Renderer, Result, Vector2, Vertex};
 
 use ash::vk;
 use std::env;
@@ -84,10 +84,7 @@ pub fn load_model<P: AsRef<Path> + std::fmt::Debug>(
     let mut vertices = vec![];
     let mut indices = vec![];
 
-    let mut shade = 20.0;
-    let mut color = ColorRGB(Vector3::from_array([shade, shade, shade]));
-
-    for (n, index) in obj.geometric_indices.iter().copied().enumerate() {
+    for index in obj.geometric_indices.iter().copied() {
         let position = obj.geometric_vertices[index as usize];
         let texture_position = match obj.texture_vertices.is_empty() {
             true => Vector2::from_array([position[2], position[1]]),
@@ -97,21 +94,12 @@ pub fn load_model<P: AsRef<Path> + std::fmt::Debug>(
         let mut vertex = Vertex {
             position,
             texture_position,
-            color,
         };
 
         vertex.texture_position[1] = 1.0 - vertex.texture_position[1];
 
         vertices.push(vertex);
         indices.push(indices.len() as _);
-        if n % 3 == 0 {
-            shade = (shade + 10.0) % 128.0;
-        }
-        color = ColorRGB(Vector3::from_array([
-            shade / 255.0,
-            shade / 255.0,
-            shade / 255.0,
-        ]));
     }
 
     Ok((vertices, indices))

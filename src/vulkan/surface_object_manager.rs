@@ -361,12 +361,6 @@ unsafe fn create_graphics_pipeline(
         vk::VertexInputAttributeDescription {
             binding: 0,
             location: 1,
-            format: vk::Format::R32G32B32_SFLOAT,
-            offset: std::mem::offset_of!(Vertex<f32>, color) as _,
-        },
-        vk::VertexInputAttributeDescription {
-            binding: 0,
-            location: 2,
             format: vk::Format::R32G32_SFLOAT,
             offset: std::mem::offset_of!(Vertex<f32>, texture_position) as _,
         },
